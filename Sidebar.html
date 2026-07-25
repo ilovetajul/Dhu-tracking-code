@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <?!= include('Style'); ?>
+</head>
+<body>
+  <div class="sidebar-wrap">
+    <div style="font-weight:700; color:var(--navy-dark); font-size:14px; margin-bottom:12px;">
+      QC Management System
+    </div>
+
+    <button class="sidebar-btn" onclick="google.script.run.openForm()">
+      📝 New Inspection Entry
+      <span class="desc">Log a QI's style inspection for this hour</span>
+    </button>
+
+    <button class="sidebar-btn" onclick="google.script.run.openDashboard()">
+      📊 Open Dashboard
+      <span class="desc">KPIs, DHU trends, defect analysis, false reporting</span>
+    </button>
+
+    <button class="sidebar-btn" onclick="runAction(this, 'recalculateAllRecords')">
+      🧮 Recalculate All Records
+      <span class="desc">Re-run status &amp; false-reporting checks on every row</span>
+    </button>
+
+    <button class="sidebar-btn" onclick="runAction(this, 'rebuildMasterLists')">
+      🔄 Rebuild Master Lists
+      <span class="desc">Refresh dropdown values from Raw Data</span>
+    </button>
+
+    <div id="msg" style="font-size:12px; color:var(--gray-500); margin-top:10px;"></div>
+  </div>
+
+  <script>
+    function runAction(btn, fnName) {
+      btn.disabled = true;
+      document.getElementById('msg').textContent = 'Working…';
+      google.script.run
+        .withSuccessHandler(function () {
+          document.getElementById('msg').textContent = 'Done.';
+          btn.disabled = false;
+        })
+        .withFailureHandler(function (err) {
+          document.getElementById('msg').textContent = 'Error: ' + err.message;
+          btn.disabled = false;
+        })
+        [fnName]();
+    }
+  </script>
+</body>
+</html>

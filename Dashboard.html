@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <?!= include('Style'); ?>
+  <?!= include('JavaScript'); ?>
+  <script src="https://www.gstatic.com/charts/loader.js"></script>
+</head>
+<body>
+  <div class="app-header">
+    <div>
+      <h1>Quality Inspection Dashboard</h1>
+      <div class="subtitle" id="recordCountLabel">Loading…</div>
+    </div>
+    <button class="btn btn-ghost" onclick="applyFilters()">↻ Refresh</button>
+  </div>
+
+  <div class="container">
+    <div class="filter-bar" id="filterBar">
+      <div class="filter-field"><label>From</label><input type="date" id="ff_dateFrom"></div>
+      <div class="filter-field"><label>To</label><input type="date" id="ff_dateTo"></div>
+      <div class="filter-field"><label>Hour</label><select id="ff_hour"><option value="">All</option></select></div>
+      <div class="filter-field"><label>Buyer</label><select id="ff_buyer"><option value="">All</option></select></div>
+      <div class="filter-field"><label>Style</label><select id="ff_style"><option value="">All</option></select></div>
+      <div class="filter-field"><label>Line</label><select id="ff_line"><option value="">All</option></select></div>
+      <div class="filter-field"><label>QI</label><select id="ff_qi"><option value="">All</option></select></div>
+      <div class="filter-field"><label>Defect</label><select id="ff_defect"><option value="">All</option></select></div>
+      <button class="btn btn-primary" onclick="applyFilters()">Apply</button>
+      <button class="btn btn-ghost" onclick="resetFilters()">Reset</button>
+    </div>
+
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="overview" onclick="switchTab('overview')">Overview</button>
+      <button class="tab-btn" data-tab="style" onclick="switchTab('style')">Style Summary</button>
+      <button class="tab-btn" data-tab="buyer" onclick="switchTab('buyer')">Buyer Summary</button>
+      <button class="tab-btn" data-tab="qi" onclick="switchTab('qi')">QI Performance</button>
+      <button class="tab-btn" data-tab="hourly" onclick="switchTab('hourly')">Hourly Analysis</button>
+      <button class="tab-btn" data-tab="line" onclick="switchTab('line')">Line Performance</button>
+      <button class="tab-btn" data-tab="false" onclick="switchTab('false')">False Reporting</button>
+      <button class="tab-btn" data-tab="trends" onclick="switchTab('trends')">Trends</button>
+    </div>
+
+    <!-- OVERVIEW -->
+    <div class="tab-panel active" id="panel-overview">
+      <div class="kpi-grid" id="kpiGrid"></div>
+      <div class="grid-2">
+        <div class="card"><div class="section-title">Production vs Checked (Daily)</div><div id="chartProdChecked" style="height:260px;"></div></div>
+        <div class="card"><div class="section-title">Daily DHU Trend</div><div id="chartDhuTrend" style="height:260px;"></div></div>
+      </div>
+      <div class="grid-2" style="margin-top:14px;">
+        <div class="card"><div class="section-title">Top 10 Defects</div><div id="chartTopDefects" style="height:260px;"></div></div>
+        <div class="card"><div class="section-title">Buyer Performance (Checked Qty)</div><div id="chartBuyerPerf" style="height:260px;"></div></div>
+      </div>
+    </div>
+
+    <!-- STYLE SUMMARY -->
+    <div class="tab-panel" id="panel-style">
+      <div class="card"><div class="section-title">Style Summary</div><div class="table-scroll" id="tblStyle"><div class="loading">Loading…</div></div></div>
+    </div>
+
+    <!-- BUYER SUMMARY -->
+    <div class="tab-panel" id="panel-buyer">
+      <div class="card"><div class="section-title">Buyer Summary</div><div class="table-scroll" id="tblBuyer"><div class="loading">Loading…</div></div></div>
+    </div>
+
+    <!-- QI PERFORMANCE -->
+    <div class="tab-panel" id="panel-qi">
+      <div class="card"><div class="section-title">QI Performance</div><div class="table-scroll" id="tblQI"><div class="loading">Loading…</div></div></div>
+    </div>
+
+    <!-- HOURLY -->
+    <div class="tab-panel" id="panel-hourly">
+      <div class="card" style="margin-bottom:14px;"><div class="section-title">Checked Qty &amp; DHU by Hour of Day</div><div id="chartHourly" style="height:260px;"></div></div>
+      <div class="card"><div class="section-title">Hourly Analysis</div><div class="table-scroll" id="tblHourly"></div></div>
+    </div>
+
+    <!-- LINE -->
+    <div class="tab-panel" id="panel-line">
+      <div class="card"><div class="section-title">Line Performance</div><div class="table-scroll" id="tblLine"><div class="loading">Loading…</div></div></div>
+    </div>
+
+    <!-- FALSE REPORTING -->
+    <div class="tab-panel" id="panel-false">
+      <div class="card"><div class="section-title">Flagged Records (most recent first)</div><div class="table-scroll" id="tblFalse"><div class="loading">Loading…</div></div></div>
+    </div>
+
+    <!-- TRENDS -->
+    <div class="tab-panel" id="panel-trends">
+      <div class="filter-bar" style="margin-bottom:10px;">
+        <div class="filter-field"><label>Group by</label>
+          <select id="trendGroupBy" onchange="loadTrends()">
+            <option value="day">Daily</option>
+            <option value="week">Weekly</option>
+            <option value="month">Monthly</option>
+          </select>
+        </div>
+      </div>
+      <div class="card" style="margin-bottom:14px;"><div class="section-title">DHU Trend</div><div id="chartDhuTrend2" style="height:260px;"></div></div>
+      <div class="grid-2">
+        <div class="card"><div class="section-title">Defect Trend (Stacked Area)</div><div id="chartDefectTrend" style="height:260px;"></div></div>
+        <div class="card"><div class="section-title">Reject vs Rectified (Stacked Bar)</div><div id="chartRejectRectified" style="height:260px;"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    google.charts.load('current', { packages: ['corechart'] });
+    google.charts.setOnLoadCallback(init);
+
+    var currentFilters = {};
+    var loadedTabs = {};
+
+    function readFilters() {
+      currentFilters = {
+        dateFrom: val('ff_dateFrom'), dateTo: val('ff_dateTo'), hour: val('ff_hour'),
+        buyer: val('ff_buyer'), style: val('ff_style'), line: val('ff_line'),
+        qi: val('ff_qi'), defect: val('ff_defect')
+      };
+    }
+    function val(id) { return document.getElementById(id).value; }
+
+    function applyFilters() {
+      readFilters();
+      loadedTabs = {};
+      loadOverview();
+      var active = document.querySelector('.tab-btn.active').getAttribute('data-tab');
+      if (active !== 'overview') loadTabData(active);
+    }
+
+    function resetFilters() {
+      ['ff_dateFrom', 'ff_dateTo', 'ff_hour', 'ff_buyer', 'ff_style', 'ff_line', 'ff_qi', 'ff_defect'].forEach(function (id) {
+        document.getElementById(id).value = '';
+      });
+      applyFilters();
+    }
+
+    function switchTab(tab) {
+      document.querySelectorAll('.tab-btn').forEach(function (b) { b.classList.toggle('active', b.getAttribute('data-tab') === tab); });
+      document.querySelectorAll('.tab-panel').forEach(function (p) { p.classList.toggle('active', p.id === 'panel-' + tab); });
+      loadTabData(tab);
+    }
+
+    function loadTabData(tab) {
+      if (loadedTabs[tab]) return;
+      loadedTabs[tab] = true;
+      if (tab === 'style') loadStyleSummary();
+      else if (tab === 'buyer') loadBuyerSummary();
+      else if (tab === 'qi') loadQIPerformance();
+      else if (tab === 'hourly') loadHourly();
+      else if (tab === 'line') loadLinePerformance();
+      else if (tab === 'false') loadFalseReporting();
+      else if (tab === 'trends') loadTrends();
+    }
+
+    // ---------------- init / filter options ----------------
+    function init() {
+      runServer('getFilterOptions').then(function (opts) {
+        populateFilterSelect('ff_hour', opts.hours);
+        populateFilterSelect('ff_buyer', opts.buyers);
+        populateFilterSelect('ff_style', opts.styles);
+        populateFilterSelect('ff_line', opts.lines);
+        populateFilterSelect('ff_qi', opts.qis);
+        populateFilterSelect('ff_defect', opts.defects);
+        document.getElementById('recordCountLabel').textContent =
+          opts.totalRecords + ' records' + (opts.minDate ? (' · ' + opts.minDate + ' to ' + opts.maxDate) : '');
+        loadOverview();
+      }).catch(showError);
+    }
+
+    function populateFilterSelect(id, values) {
+      var sel = document.getElementById(id);
+      values.forEach(function (v) {
+        var opt = document.createElement('option');
+        opt.value = v; opt.textContent = v;
+        sel.appendChild(opt);
+      });
+    }
+
+    function showError(err) {
+      console.error(err);
+    }
+
+    // ---------------- Overview ----------------
+    function loadOverview() {
+      runServer('getDashboardKPIs', currentFilters).then(renderKPIs).catch(showError);
+      runServer('getProductionVsChecked', currentFilters).then(drawProdCheckedChart).catch(showError);
+      runServer('getTrendData', currentFilters, 'day').then(function (t) { drawDhuTrendChart('chartDhuTrend', t); }).catch(showError);
+      runServer('getTopDefects', currentFilters, 10).then(drawTopDefectsChart).catch(showError);
+      runServer('getBuyerSummary', currentFilters).then(drawBuyerPerfChart).catch(showError);
+    }
+
+    function renderKPIs(k) {
+      var cards = [
+        ['Today\'s Production', fmtNum(k.todayProduction), ''],
+        ['Today\'s Checked Qty', fmtNum(k.todayChecked), ''],
+        ['Today\'s Defective Qty', fmtNum(k.todayDefective), 'warn'],
+        ['Today\'s Reject Qty', fmtNum(k.todayReject), 'danger'],
+        ['Today\'s DHU', fmtPct(k.todayDhu), k.todayDhu > 5 ? 'danger' : 'ok'],
+        ['Total Buyers', fmtNum(k.totalBuyers), ''],
+        ['Total Styles', fmtNum(k.totalStyles), ''],
+        ['Total QIs', fmtNum(k.totalQIs), ''],
+        ['False Reporting Count', fmtNum(k.falseReportingCount), k.falseReportingCount > 0 ? 'danger' : 'ok']
+      ];
+      document.getElementById('kpiGrid').innerHTML = cards.map(function (c) {
+        return '<div class="kpi-card ' + c[2] + '"><div class="kpi-label">' + c[0] + '</div><div class="kpi-value">' + c[1] + '</div></div>';
+      }).join('');
+    }
+
+    function drawProdCheckedChart(d) {
+      var dt = new google.visualization.DataTable();
+      dt.addColumn('string', 'Date'); dt.addColumn('number', 'Production'); dt.addColumn('number', 'Checked');
+      dt.addRows(d.labels.map(function (l, i) { return [l, d.production[i], d.checked[i]]; }));
+      new google.visualization.ColumnChart(document.getElementById('chartProdChecked')).draw(dt, {
+        colors: [CHART_COLORS[1], CHART_COLORS[0]], legend: { position: 'top' }, chartArea: { width: '85%', height: '75%' }
+      });
+    }
+
+    function drawDhuTrendChart(elId, t) {
+      var dt = new google.visualization.DataTable();
+      dt.addColumn('string', 'Period'); dt.addColumn('number', 'DHU %');
+      dt.addRows(t.labels.map(function (l, i) { return [l, t.dhu[i]]; }));
+      new google.visualization.LineChart(document.getElementById(elId)).draw(dt, {
+        colors: [CHART_COLORS[2]], legend: { position: 'none' }, chartArea: { width: '85%', height: '75%' },
+        pointSize: 4, curveType: 'function'
+      });
+    }
+
+    function drawTopDefectsChart(list) {
+      var dt = new google.visualization.DataTable();
+      dt.addColumn('string', 'Defect'); dt.addColumn('number', 'Qty');
+      dt.addRows(list.map(function (r) { return [r.name, r.qty]; }));
+      new google.visualization.PieChart(document.getElementById('chartTopDefects')).draw(dt, {
+        colors: CHART_COLORS, chartArea: { width: '90%', height: '80%' }, legend: { position: 'right', textStyle: { fontSize: 11 } }
+      });
+    }
+
+    function drawBuyerPerfChart(list) {
+      var top = list.slice(0, 10);
+      var dt = new google.visualization.DataTable();
+      dt.addColumn('string', 'Buyer'); dt.addColumn('number', 'Checked Qty');
+      dt.addRows(top.map(function (r) { return [r.buyer, r.checkQty]; }));
+      new google.visualization.ColumnChart(document.getElementById('chartBuyerPerf')).draw(dt, {
+        colors: [CHART_COLORS[0]], legend: { position: 'none' }, chartArea: { width: '85%', height: '75%' }
+      });
+    }
+
+    // ---------------- Style Summary ----------------
+    function loadStyleSummary() {
+      runServer('getStyleSummary', currentFilters).then(function (rows) {
+        var cols = [
+          { key: 'buyer', label: 'Buyer' }, { key: 'style', label: 'Style' },
+          { key: 'orderQty', label: 'Order Qty', format: fmtNum },
+          { key: 'prodQty', label: 'Production', format: fmtNum },
+          { key: 'checkQty', label: 'Checked', format: fmtNum },
+          { key: 'passQty', label: 'Pass', format: fmtNum },
+          { key: 'defectiveQty', label: 'Defective', format: fmtNum },
+          { key: 'rejectQty', label: 'Reject', format: fmtNum },
+          { key: 'rectifiedQty', label: 'Rectified', format: fmtNum },
+          { key: 'dhu', label: 'DHU %', format: fmtPct },
+          { key: 'checkedByStr', label: 'Checked By' },
+          { key: 'inspectionHours', label: 'Insp. Hours', format: fmtNum }
+        ];
+        rows.forEach(function (r) { r.checkedByStr = (r.checkedBy || []).join(', '); });
+        renderTable('tblStyle', cols, rows);
+      }).catch(showError);
+    }
+
+    // ---------------- Buyer Summary ----------------
+    function loadBuyerSummary() {
+      runServer('getBuyerSummary', currentFilters).then(function (rows) {
+        var cols = [
+          { key: 'buyer', label: 'Buyer' }, { key: 'numStyles', label: '# Styles', format: fmtNum },
+          { key: 'prodQty', label: 'Production', format: fmtNum }, { key: 'checkQty', label: 'Checked', format: fmtNum },
+          { key: 'defectiveQty', label: 'Defects', format: fmtNum }, { key: 'rejectQty', label: 'Reject', format: fmtNum },
+          { key: 'dhu', label: 'DHU %', format: fmtPct }, { key: 'topDefect', label: 'Top Defect' }
+        ];
+        renderTable('tblBuyer', cols, rows);
+      }).catch(showError);
+    }
+
+    // ---------------- QI Performance ----------------
+    function loadQIPerformance() {
+      runServer('getQIPerformance', currentFilters).then(function (rows) {
+        var cols = [
+          { key: 'rank', label: 'Rank', format: fmtNum }, { key: 'qi', label: 'QI Name' },
+          { key: 'checkQty', label: 'Checked', format: fmtNum }, { key: 'avgCheckedQty', label: 'Avg/Insp.', format: fmtNum },
+          { key: 'prodQty', label: 'Production', format: fmtNum },
+          { key: 'numStyles', label: '# Styles', format: fmtNum }, { key: 'numBuyers', label: '# Buyers', format: fmtNum },
+          { key: 'defectiveQty', label: 'Defects', format: fmtNum }, { key: 'rejectQty', label: 'Reject', format: fmtNum },
+          { key: 'rectifiedQty', label: 'Rectified', format: fmtNum }, { key: 'dhu', label: 'DHU %', format: fmtPct },
+          { key: 'falseReportingCount', label: 'Flags', format: function (v) { return v > 0 ? ('<span class="badge badge-danger">' + v + '</span>') : '0'; } }
+        ];
+        renderTable('tblQI', cols, rows);
+      }).catch(showError);
+    }
+
+    // ---------------- Hourly ----------------
+    function loadHourly() {
+      runServer('getHourlyAnalysis', currentFilters).then(function (rows) {
+        var cols = [
+          { key: 'hour', label: 'Hour' }, { key: 'prodQty', label: 'Production', format: fmtNum },
+          { key: 'checkQty', label: 'Checked', format: fmtNum }, { key: 'defectiveQty', label: 'Defects', format: fmtNum },
+          { key: 'rejectQty', label: 'Reject', format: fmtNum }, { key: 'dhu', label: 'DHU %', format: fmtPct },
+          { key: 'topDefect', label: 'Top Defect' }, { key: 'topStyle', label: 'Top Style' }, { key: 'topQI', label: 'Top QI' }
+        ];
+        renderTable('tblHourly', cols, rows);
+
+        var dt = new google.visualization.DataTable();
+        dt.addColumn('string', 'Hour'); dt.addColumn('number', 'Checked'); dt.addColumn('number', 'DHU %');
+        dt.addRows(rows.map(function (r) { return [r.hour, r.checkQty, r.dhu]; }));
+        new google.visualization.ComboChart(document.getElementById('chartHourly')).draw(dt, {
+          seriesType: 'bars', series: { 1: { type: 'line', targetAxisIndex: 1 } },
+          colors: [CHART_COLORS[0], CHART_COLORS[2]],
+          vAxes: { 0: { title: 'Checked Qty' }, 1: { title: 'DHU %' } },
+          chartArea: { width: '80%', height: '65%' }, legend: { position: 'top' }
+        });
+      }).catch(showError);
+    }
+
+    // ---------------- Line Performance ----------------
+    function loadLinePerformance() {
+      runServer('getLinePerformance', currentFilters).then(function (rows) {
+        var cols = [
+          { key: 'line', label: 'Line' }, { key: 'prodQty', label: 'Production', format: fmtNum },
+          { key: 'checkQty', label: 'Checked', format: fmtNum }, { key: 'defectiveQty', label: 'Defects', format: fmtNum },
+          { key: 'dhu', label: 'DHU %', format: fmtPct }, { key: 'topDefect', label: 'Top Defect' }, { key: 'topQI', label: 'Top QI' }
+        ];
+        renderTable('tblLine', cols, rows);
+      }).catch(showError);
+    }
+
+    // ---------------- False Reporting ----------------
+    function loadFalseReporting() {
+      runServer('getFlaggedRecords', currentFilters, 500).then(function (rows) {
+        var cols = [
+          { key: 'date', label: 'Date' }, { key: 'hour', label: 'Hour' }, { key: 'line', label: 'Line' },
+          { key: 'qi', label: 'QI' }, { key: 'buyer', label: 'Buyer' }, { key: 'style', label: 'Style' },
+          { key: 'checkQty', label: 'Checked', format: fmtNum }, { key: 'defectiveQty', label: 'Defects', format: fmtNum },
+          { key: 'status', label: 'Status', format: function (v) { return '<span class="badge ' + statusBadgeClass(v) + '">' + v + '</span>'; } },
+          { key: 'reason', label: 'Reason' }
+        ];
+        if (rows.length === 0) {
+          document.getElementById('tblFalse').innerHTML = '<div class="empty-state">No flagged records in the current filter. 🎉</div>';
+          return;
+        }
+        renderTable('tblFalse', cols, rows);
+      }).catch(showError);
+    }
+
+    // ---------------- Trends ----------------
+    function loadTrends() {
+      var groupBy = val('trendGroupBy');
+      runServer('getTrendData', currentFilters, groupBy).then(function (t) {
+        drawDhuTrendChart('chartDhuTrend2', t);
+
+        var dt1 = new google.visualization.DataTable();
+        dt1.addColumn('string', 'Period'); dt1.addColumn('number', 'Defective Qty');
+        dt1.addRows(t.labels.map(function (l, i) { return [l, t.defective[i]]; }));
+        new google.visualization.AreaChart(document.getElementById('chartDefectTrend')).draw(dt1, {
+          colors: [CHART_COLORS[4]], legend: { position: 'none' }, chartArea: { width: '85%', height: '75%' }
+        });
+
+        var dt2 = new google.visualization.DataTable();
+        dt2.addColumn('string', 'Period'); dt2.addColumn('number', 'Reject Qty'); dt2.addColumn('number', 'Rectified Qty');
+        dt2.addRows(t.labels.map(function (l, i) { return [l, t.reject[i], t.rectified[i]]; }));
+        new google.visualization.ColumnChart(document.getElementById('chartRejectRectified')).draw(dt2, {
+          isStacked: true, colors: [CHART_COLORS[2], CHART_COLORS[3]], legend: { position: 'top' },
+          chartArea: { width: '85%', height: '70%' }
+        });
+      }).catch(showError);
+    }
+
+    // ---------------- Generic table renderer ----------------
+    function renderTable(containerId, columns, rows) {
+      var container = document.getElementById(containerId);
+      if (!rows || rows.length === 0) {
+        container.innerHTML = '<div class="empty-state">No data for the current filter.</div>';
+        return;
+      }
+      var thead = '<tr>' + columns.map(function (c) { return '<th data-key="' + c.key + '">' + c.label + '</th>'; }).join('') + '</tr>';
+      var tbody = rows.map(function (r) {
+        return '<tr>' + columns.map(function (c) {
+          var raw = r[c.key];
+          var display = c.format ? c.format(raw, r) : (raw === undefined || raw === null ? '' : raw);
+          var sortVal = (typeof raw === 'number') ? raw : String(raw === undefined ? '' : raw);
+          return '<td data-col="' + c.key + '" data-val="' + String(sortVal).replace(/"/g, '&quot;') + '">' + display + '</td>';
+        }).join('') + '</tr>';
+      }).join('');
+      container.innerHTML = '<table class="data-table"><thead>' + thead + '</thead><tbody>' + tbody + '</tbody></table>';
+      makeSortable(container.querySelector('table'));
+    }
+  </script>
+</body>
+</html>

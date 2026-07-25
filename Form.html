@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <?!= include('Style'); ?>
+</head>
+<body>
+  <div class="app-header">
+    <div>
+      <h1>New Inspection Entry</h1>
+      <div class="subtitle">One Style checked by one QI, during one hour</div>
+    </div>
+  </div>
+
+  <div class="form-wrap">
+    <div id="banner" class="form-banner"></div>
+
+    <form id="entryForm">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Date *</label>
+          <input type="date" id="f_date" required>
+        </div>
+        <div class="form-group">
+          <label>Hour *</label>
+          <select id="f_hour" required><option value="">Select…</option></select>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Line *</label>
+          <select id="f_line" required><option value="">Select…</option></select>
+        </div>
+        <div class="form-group">
+          <label>QI Name *</label>
+          <select id="f_qi" required><option value="">Select…</option></select>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Buyer *</label>
+          <select id="f_buyer" required><option value="">Select…</option></select>
+        </div>
+        <div class="form-group">
+          <label>Style *</label>
+          <input type="text" id="f_style" list="styleList" placeholder="Type or pick" required>
+          <datalist id="styleList"></datalist>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Order Qty</label>
+          <input type="number" id="f_orderQty" min="0" value="0">
+        </div>
+        <div class="form-group">
+          <label>Production Qty</label>
+          <input type="number" id="f_prodQty" min="0" value="0">
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>QC Check Qty *</label>
+          <input type="number" id="f_checkQty" min="0" value="0" required>
+        </div>
+        <div class="form-group">
+          <label>Pass Qty</label>
+          <input type="number" id="f_passQty" min="0" value="0">
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Defective Qty</label>
+          <input type="number" id="f_defectiveQty" min="0" value="0">
+        </div>
+        <div class="form-group">
+          <label>Defect Name</label>
+          <select id="f_defectName"><option value="">Select…</option></select>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Defect Qty</label>
+          <input type="number" id="f_defectQty" min="0" value="0">
+        </div>
+        <div class="form-group">
+          <label>Rectified Qty</label>
+          <input type="number" id="f_rectifiedQty" min="0" value="0">
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Reject Qty</label>
+          <input type="number" id="f_rejectQty" min="0" value="0">
+        </div>
+        <div class="form-group">
+          <label>&nbsp;</label>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Remarks</label>
+        <textarea id="f_remarks" rows="2" placeholder="Optional"></textarea>
+      </div>
+
+      <button type="submit" class="btn btn-primary" id="submitBtn" style="width:100%; padding:11px;">Save Entry</button>
+    </form>
+  </div>
+
+  <script>
+    var buyerStyles = {};
+
+    function populateSelect(id, values, keepFirst) {
+      var sel = document.getElementById(id);
+      while (sel.options.length > (keepFirst ? 1 : 0)) sel.remove(sel.options.length - 1);
+      values.forEach(function (v) {
+        var opt = document.createElement('option');
+        opt.value = v; opt.textContent = v;
+        sel.appendChild(opt);
+      });
+    }
+
+    function refreshStyleOptions() {
+      var buyer = document.getElementById('f_buyer').value;
+      var list = document.getElementById('styleList');
+      list.innerHTML = '';
+      var styles = buyerStyles[buyer] || [];
+      styles.forEach(function (s) {
+        var opt = document.createElement('option');
+        opt.value = s;
+        list.appendChild(opt);
+      });
+    }
+
+    function loadMasterData() {
+      google.script.run.withSuccessHandler(function (data) {
+        populateSelect('f_line', data.lines, true);
+        populateSelect('f_qi', data.qiNames, true);
+        populateSelect('f_buyer', data.buyers, true);
+        populateSelect('f_defectName', data.defectNames, true);
+        populateSelect('f_hour', data.hourSlots, true);
+        buyerStyles = data.buyerStyles || {};
+        document.getElementById('f_date').value = data.today;
+      }).withFailureHandler(function (err) {
+        showBanner('Could not load dropdown lists: ' + err.message, 'danger');
+      }).getFormMasterData();
+    }
+
+    document.getElementById('f_buyer').addEventListener('change', refreshStyleOptions);
+
+    function showBanner(text, type) {
+      var el = document.getElementById('banner');
+      el.textContent = text;
+      el.className = 'form-banner show';
+      el.style.background = type === 'danger' ? '#fde3e8' : (type === 'warn' ? '#fff3cd' : '#e3f8ec');
+      el.style.color = type === 'danger' ? '#d9364f' : (type === 'warn' ? '#8a6d00' : '#1a9d5c');
+    }
+
+    function val(id) { return document.getElementById(id).value; }
+    function numVal(id) { return Number(document.getElementById(id).value) || 0; }
+
+    document.getElementById('entryForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var btn = document.getElementById('submitBtn');
+      btn.disabled = true;
+      btn.textContent = 'Saving…';
+
+      var payload = {
+        date: val('f_date'), hour: val('f_hour'), line: val('f_line'), qi: val('f_qi'),
+        buyer: val('f_buyer'), style: val('f_style'),
+        orderQty: numVal('f_orderQty'), prodQty: numVal('f_prodQty'), checkQty: numVal('f_checkQty'),
+        passQty: numVal('f_passQty'), defectiveQty: numVal('f_defectiveQty'),
+        defectName: val('f_defectName'), defectQty: numVal('f_defectQty'),
+        rectifiedQty: numVal('f_rectifiedQty'), rejectQty: numVal('f_rejectQty'),
+        remarks: val('f_remarks')
+      };
+
+      google.script.run
+        .withSuccessHandler(function (res) {
+          btn.disabled = false;
+          btn.textContent = 'Save Entry';
+          if (!res.ok) {
+            showBanner('Not saved: ' + res.error, 'danger');
+            return;
+          }
+          if (res.status === 'OK') {
+            showBanner('Saved successfully. Status: OK', 'ok');
+          } else {
+            showBanner('Saved, but flagged as ' + res.status + ' — ' + res.reason, 'warn');
+          }
+          // Reset quantity fields for the next quick entry; keep Date/Line/QI as-is.
+          ['f_style', 'f_orderQty', 'f_prodQty', 'f_checkQty', 'f_passQty', 'f_defectiveQty',
+            'f_defectQty', 'f_rectifiedQty', 'f_rejectQty', 'f_remarks'].forEach(function (id) {
+            document.getElementById(id).value = id.indexOf('Qty') > -1 ? 0 : '';
+          });
+          document.getElementById('f_defectName').selectedIndex = 0;
+          document.getElementById('f_style').focus();
+        })
+        .withFailureHandler(function (err) {
+          btn.disabled = false;
+          btn.textContent = 'Save Entry';
+          showBanner('Error: ' + err.message, 'danger');
+        })
+        .submitInspectionRecord(payload);
+    });
+
+    loadMasterData();
+  </script>
+</body>
+</html>

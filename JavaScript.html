@@ -1,0 +1,64 @@
+<script>
+  // Promise wrapper around google.script.run so async/await can be used.
+  function runServer(fnName) {
+    var args = Array.prototype.slice.call(arguments, 1);
+    return new Promise(function (resolve, reject) {
+      google.script.run
+        .withSuccessHandler(resolve)
+        .withFailureHandler(function (err) { reject(err); })
+        [fnName].apply(null, args);
+    });
+  }
+
+  function fmtNum(n) {
+    n = Number(n) || 0;
+    return n.toLocaleString('en-US', { maximumFractionDigits: 0 });
+  }
+
+  function fmtPct(n) {
+    n = Number(n) || 0;
+    return n.toFixed(2) + '%';
+  }
+
+  function debounce(fn, wait) {
+    var t;
+    return function () {
+      var ctx = this, args = arguments;
+      clearTimeout(t);
+      t = setTimeout(function () { fn.apply(ctx, args); }, wait);
+    };
+  }
+
+  function statusBadgeClass(status) {
+    if (status === 'OK') return 'badge-ok';
+    if (status === 'CHECK REQUIRED') return 'badge-warn';
+    return 'badge-danger';
+  }
+
+  // Lightweight click-to-sort for any table.data-table.
+  function makeSortable(table) {
+    var ths = table.querySelectorAll('th[data-key]');
+    ths.forEach(function (th) {
+      th.addEventListener('click', function () {
+        var key = th.getAttribute('data-key');
+        var tbody = table.querySelector('tbody');
+        var rows = Array.prototype.slice.call(tbody.querySelectorAll('tr'));
+        var asc = th.getAttribute('data-asc') !== 'true';
+        ths.forEach(function (t) { t.removeAttribute('data-asc'); });
+        th.setAttribute('data-asc', asc);
+        rows.sort(function (a, b) {
+          var av = a.querySelector('[data-col="' + key + '"]').getAttribute('data-val');
+          var bv = b.querySelector('[data-col="' + key + '"]').getAttribute('data-val');
+          var an = parseFloat(av), bn = parseFloat(bv);
+          var cmp;
+          if (!isNaN(an) && !isNaN(bn)) cmp = an - bn;
+          else cmp = String(av).localeCompare(String(bv));
+          return asc ? cmp : -cmp;
+        });
+        rows.forEach(function (r) { tbody.appendChild(r); });
+      });
+    });
+  }
+
+  var CHART_COLORS = ['#2563eb', '#1a3d8f', '#d9364f', '#1a9d5c', '#b58900', '#7a5cf0', '#0891b2', '#e8590c'];
+</script>
